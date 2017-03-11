@@ -6,6 +6,7 @@ from keras.layers.core import Dense, Layer
 from theano import tensor as T
 from theano.sandbox.cuda import dnn
 
+#Form https://github.com/nanopony/keras-convautoencoder for autoencoder testing.
 
 class SumLayer(Layer):
     def __init__(self, **kwargs):
