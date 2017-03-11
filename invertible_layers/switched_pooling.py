@@ -13,11 +13,11 @@ Created on Mon Feb 22 17:58:14 2016
 """
 
 from keras import backend as K
-from keras.layers import convolutional as convolutional
+from keras.layers import pooling as pooling
 from keras.layers.core import Lambda
 import switched_pooling_backend as K_sp
 
-def max_only_lambda(index_type='flattened', dim_ordering='th'):
+def max_only_lambda(index_type='flattened', dim_ordering='th', **kwargs):
     if index_type == 'flattened' or index_type == 'space_filling':
         if dim_ordering == 'th':            
             def max_only(X):
@@ -51,9 +51,9 @@ def max_only_lambda(index_type='flattened', dim_ordering='th'):
     else:
         raise Exception('Invalid index_type: ' + index_type)
     
-    return Lambda(max_only, output_shape=max_only_output_shape)
+    return Lambda(max_only, output_shape=max_only_output_shape, **kwargs)
 
-def switch_only_lambda(index_type='flattened', dim_ordering='th'):
+def switch_only_lambda(index_type='flattened', dim_ordering='th', **kwargs):
     if index_type == 'flattened' or index_type == 'space_filling':
         if dim_ordering == 'th':            
             def switch_only(X):
@@ -87,10 +87,10 @@ def switch_only_lambda(index_type='flattened', dim_ordering='th'):
     else:
         raise Exception('Invalid index_type: ' + index_type)
     
-    return Lambda(switch_only, output_shape=switch_only_output_shape)
+    return Lambda(switch_only, output_shape=switch_only_output_shape, **kwargs)
 
     
-class MaxPoolSwitch2D(convolutional._Pooling2D):
+class MaxPoolSwitch2D(pooling._Pooling2D):
     '''Max pooling operation for spatial data.
 
     # Input shape
@@ -147,7 +147,9 @@ class MaxPoolSwitch2D(convolutional._Pooling2D):
     def _pooling_function(self, inputs, pool_size, strides,
                           border_mode, dim_ordering):
         output = K_sp.maxpoolswitch2d(inputs, pool_size, strides,
-                          border_mode, dim_ordering)
+                          border_mode, dim_ordering, 
+                          index_type=self.index_type, 
+                          index_scope=self.index_scope)
         return output
 
     def get_config(self):
@@ -156,7 +158,7 @@ class MaxPoolSwitch2D(convolutional._Pooling2D):
         base_config = super(MaxPoolSwitch2D, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
-class UnPoolSwitch2D(convolutional.Layer):
+class UnPoolSwitch2D(pooling.Layer):
     '''Unpools data using switchs
 
     # Input shape
@@ -186,7 +188,7 @@ class UnPoolSwitch2D(convolutional.Layer):
                  index_type='flattened', index_scope='local',
                  original_input_shape=None, **kwargs):
         super(UnPoolSwitch2D, self).__init__(**kwargs)
-        self.input = K.placeholder(ndim=4)
+        #self.input = K.placeholder(ndim=4)
         self.pool_size = tuple(pool_size)
         if strides is None:
             strides = self.pool_size
@@ -197,9 +199,7 @@ class UnPoolSwitch2D(convolutional.Layer):
         self.index_scope = index_scope
         self.original_input_shape = original_input_shape
         
-    @property
-    def output_shape(self):
-        input_shape = self.input_shape
+    def get_output_shape_for(self, input_shape):
         if self.original_input_shape is None:
 
             if self.dim_ordering == 'th':
@@ -218,15 +218,25 @@ class UnPoolSwitch2D(convolutional.Layer):
             return self.original_input_shape
 
 
-    def get_output(self, train=False):
-        X = self.get_input(train)
-        output = K_sp.unpoolswitch2d(X, pool_size=self.pool_size, 
+    def call(self, x, mask=None):
+        #X = self.get_input(train)
+        output = K_sp.unpoolswitch2d(x, pool_size=self.pool_size, 
                                      strides=self.strides,
                                      dim_ordering=self.dim_ordering,
                                      index_type=self.index_type,
                                      index_scope=self.index_scope,
                                      original_input_shape=self.original_input_shape)
         return output
+        
+    def _pooling_function(self, inputs, pool_size, strides,
+                          border_mode, dim_ordering):
+        output = K_sp.unpoolswitch2d(inputs, pool_size=pool_size, 
+                                     strides=strides,
+                                     dim_ordering=dim_ordering,
+                                     index_type=self.index_type,
+                                     index_scope=self.index_scope,
+                                     original_input_shape=self.original_input_shape)
+        return output        
         
     def get_config(self):
         config = {'name': self.__class__.__name__,

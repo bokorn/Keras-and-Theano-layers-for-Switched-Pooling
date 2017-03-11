@@ -1,6 +1,6 @@
 import theano
 from keras import backend as K
-from keras.backend.theano_backend import _on_gpu
+#from keras.backend.theano_backend import _on_gpu
 from keras.layers.convolutional import Convolution2D, UpSampling2D
 from keras.layers.core import Dense, Layer
 from theano import tensor as T
@@ -89,7 +89,8 @@ def deconv2d_fast(x, kernel, strides=(1, 1), border_mode='valid', dim_ordering='
             filter_shape = (filter_shape[3], filter_shape[2],
                             filter_shape[0], filter_shape[1])
 
-    if _on_gpu() and dnn.dnn_available():
+    #if _on_gpu() and dnn.dnn_available():
+    if False:
         if border_mode == 'same':
             assert (strides == (1, 1))
             conv_out = dnn.dnn_conv(img=x,
@@ -200,7 +201,8 @@ class Deconvolution2D(Convolution2D):
         else:
             raise Exception('Invalid dim_ordering: ' + self.dim_ordering)
             
-    def build(self):
+    def build(self, input_shape):
+        self._input_shape = input_shape
         self.W = self._binded_conv_layer.W.dimshuffle((1, 0, 2, 3))
         if self.dim_ordering == 'th':
             self.W_shape = (self.nb_out_channels, self.nb_filter, self.nb_row, self.nb_col)
@@ -229,9 +231,8 @@ class Deconvolution2D(Convolution2D):
             self.set_weights(self.initial_weights)
             del self.initial_weights
 
-    @property
-    def output_shape(self):
-        output_shape = list(super(Deconvolution2D, self).output_shape)
+    def get_output_shape_for(self, input_shape):
+        output_shape = list(super(Deconvolution2D, self).get_output_shape_for(input_shape))
 
         if self.dim_ordering == 'th':
             output_shape[1] = self.nb_out_channels
@@ -241,13 +242,12 @@ class Deconvolution2D(Convolution2D):
             raise Exception('Invalid dim_ordering: ' + self.dim_ordering)
         return tuple(output_shape)
 
-    def get_output(self, train=False):
-        X = self.get_input(train)
-        conv_out = deconv2d_fast(X, self.W,
+    def call(self, x, mask=None):
+        conv_out = deconv2d_fast(x, self.W,
                                  strides=self.subsample,
                                  border_mode=self.border_mode,
                                  dim_ordering=self.dim_ordering,
-                                 image_shape=self.input_shape,
+                                 image_shape=self._input_shape,
                                  filter_shape=self.W_shape)
         if self.dim_ordering == 'th':
             output = conv_out + K.reshape(self.b, (1, self.nb_out_channels, 1, 1))
