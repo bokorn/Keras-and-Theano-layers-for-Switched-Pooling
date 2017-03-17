@@ -144,6 +144,28 @@ class MaxPoolSwitch2D(pooling._Pooling2D):
         self.index_type = index_type
         self.index_scope = index_scope
 
+    def get_output_shape_for(self, input_shape):
+
+        output_shape = list(super(MaxPoolSwitch2D, self).get_output_shape_for(input_shape))
+        
+        if self.index_type == 'flattened' or self.index_type == 'space_filling':
+            index_size = 2
+        elif self.index_type == 'array':
+            index_size = 3
+        else:
+            raise Exception('Invalid index_type: ' + self.index_type)
+
+
+        if self.dim_ordering == 'th':
+            output_shape[1] *= index_size
+        elif self.dim_ordering == 'tf':
+            output_shape[3] *= index_size
+        else:
+            raise Exception('Invalid dim_ordering: ' + self.dim_ordering)
+
+        return tuple(output_shape)
+
+
     def _pooling_function(self, inputs, pool_size, strides,
                           border_mode, dim_ordering):
         output = K_sp.maxpoolswitch2d(inputs, pool_size, strides,
